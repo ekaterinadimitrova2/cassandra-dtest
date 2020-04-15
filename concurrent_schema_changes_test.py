@@ -247,7 +247,10 @@ class TestConcurrentSchemaChanges(Tester):
         create materialized views across multiple threads concurrently
         """
         cluster = self.cluster
-        cluster.set_configuration_options({'enable_materialized_views': 'true'})
+        if cluster.version() < '4.0':
+            cluster.set_configuration_options({'enable_materialized_views': 'true'})
+        else:
+            cluster.set_configuration_options({'materialized_views_enabled': 'true'})
         cluster.populate(3).start()
         node1, node2, node3 = cluster.nodelist()
         session = self.cql_connection(node1)

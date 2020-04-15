@@ -21,6 +21,7 @@ logging.getLogger('cassandra').setLevel(logging.CRITICAL)
 
 NODELOCAL = 11
 
+
 def jmx_start(to_start, **kwargs):
     kwargs['jvm_args'] = kwargs.get('jvm_args', []) + ['-XX:-PerfDisableSharedMem']
     to_start.start(**kwargs)
@@ -34,9 +35,11 @@ def repair_nodes(nodes):
     for node in nodes:
         node.nodetool('repair -pr')
 
+
 def cleanup_nodes(nodes):
     for node in nodes:
         node.nodetool('cleanup')
+
 
 def patch_start(startable):
     old_start = startable.start
@@ -51,7 +54,6 @@ def patch_start(startable):
 
 @since('4.0')
 class TestTransientReplicationRing(Tester):
-
     keyspace = "ks"
     table = "tbl"
 
@@ -67,7 +69,7 @@ class TestTransientReplicationRing(Tester):
     def point_select_statement(self):
         return SimpleStatement(self.point_select(), consistency_level=NODELOCAL)
 
-    def check_expected(self, sessions, expected, node=[i for i in range(0,1000)], cleanup=False):
+    def check_expected(self, sessions, expected, node=[i for i in range(0, 1000)], cleanup=False):
         """Check that each node has the expected values present"""
         for idx, session, expect, node in zip(range(0, 1000), sessions, expected, node):
             print("Checking idx " + str(idx))
@@ -102,16 +104,24 @@ class TestTransientReplicationRing(Tester):
         self.tokens = ['00010', '00020', '00030']
 
         patch_start(self.cluster)
-        self.cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
-                                                       'num_tokens': 1,
-                                                       'commitlog_sync_period_in_ms': 500,
-                                                       'enable_transient_replication': True,
-                                                       'partitioner' : 'org.apache.cassandra.dht.OrderPreservingPartitioner'})
+        if self.cluster.version() < '4.0':
+            self.cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+                                                           'num_tokens': 1,
+                                                           'commitlog_sync_period_in_ms': 500,
+                                                           'enable_transient_replication': True,
+                                                           'partitioner': 'org.apache.cassandra.dht.OrderPreservingPartitioner'})
+        else:
+            self.cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+                                                           'num_tokens': 1,
+                                                           'commitlog_sync_period_in_ms': 500,
+                                                           'transient_replication_enabled': True,
+                                                           'partitioner': 'org.apache.cassandra.dht.OrderPreservingPartitioner'})
         print("CLUSTER INSTALL DIR: ")
         print(self.cluster.get_install_dir())
         self.cluster.populate(3, tokens=self.tokens, debug=True, install_byteman=True)
         # self.cluster.populate(3, debug=True, install_byteman=True)
-        self.cluster.start(wait_other_notice=True, wait_for_binary_proto=True, jvm_args=['-Dcassandra.enable_nodelocal_queries=true'])
+        self.cluster.start(wait_other_notice=True, wait_for_binary_proto=True,
+                           jvm_args=['-Dcassandra.enable_nodelocal_queries=true'])
 
         # enable shared memory
         for node in self.cluster.nodelist():
@@ -131,18 +141,19 @@ class TestTransientReplicationRing(Tester):
         print("CREATE KEYSPACE %s WITH REPLICATION={%s}" % (self.keyspace, replication_params))
         session.execute(
             "CREATE TABLE %s.%s (pk varchar, ck int, value int, PRIMARY KEY (pk, ck)) WITH speculative_retry = 'NEVER' AND additional_write_policy = 'NEVER' AND read_repair = 'NONE'" % (
-            self.keyspace, self.table))
+                self.keyspace, self.table))
 
     def quorum(self, session, stmt_str):
         return session.execute(SimpleStatement(stmt_str, consistency_level=ConsistencyLevel.QUORUM))
 
     def insert_row(self, pk, ck, value, session=None, node=None):
         session = session or self.exclusive_cql_connection(node or self.node1)
-        #token = BytesToken.from_key(pack('>i', pk)).value
-        #assert token < BytesToken.from_string(self.tokens[0]).value or BytesToken.from_string(self.tokens[-1]).value < token   # primary replica should be node1
-        #TODO Is quorum really right? I mean maybe we want ALL with retries since we really don't want to the data
-        #not at a replica unless it is intentional
-        self.quorum(session, "INSERT INTO %s.%s (pk, ck, value) VALUES ('%05d', %s, %s)" % (self.keyspace, self.table, pk, ck, value))
+        # token = BytesToken.from_key(pack('>i', pk)).value
+        # assert token < BytesToken.from_string(self.tokens[0]).value or BytesToken.from_string(self.tokens[-1]).value < token   # primary replica should be node1
+        # TODO Is quorum really right? I mean maybe we want ALL with retries since we really don't want to the data
+        # not at a replica unless it is intentional
+        self.quorum(session, "INSERT INTO %s.%s (pk, ck, value) VALUES ('%05d', %s, %s)" % (
+        self.keyspace, self.table, pk, ck, value))
 
     @flaky(max_runs=1)
     @pytest.mark.no_vnodes
@@ -161,13 +172,13 @@ class TestTransientReplicationRing(Tester):
                     gen_expected(range(12, 31, 2))]
         self.check_expected(sessions, expected)
 
-        #Make sure at least a little data is repaired, this shouldn't move data anywhere
+        # Make sure at least a little data is repaired, this shouldn't move data anywhere
         repair_nodes(nodes)
 
         self.check_expected(sessions, expected)
 
-        #Ensure that there is at least some transient data around, because of this if it's missing after bootstrap
-        #We know we failed to get it from the transient replica losing the range entirely
+        # Ensure that there is at least some transient data around, because of this if it's missing after bootstrap
+        # We know we failed to get it from the transient replica losing the range entirely
         nodes[1].stop(wait_other_notice=True)
 
         for i in range(1, 40, 2):
@@ -181,7 +192,7 @@ class TestTransientReplicationRing(Tester):
                     gen_expected(range(0, 21, 2), range(32, 40, 2)),
                     gen_expected(range(1, 11, 2), range(11, 31), range(31, 40, 2))]
 
-        #Every node should have some of its fully replicated data and one and two should have some transient data
+        # Every node should have some of its fully replicated data and one and two should have some transient data
         self.check_expected(sessions, expected)
 
         node4 = new_node(self.cluster, bootstrap=True, token='00040')
@@ -192,21 +203,21 @@ class TestTransientReplicationRing(Tester):
         expected.append(gen_expected(range(11, 20, 2), range(21, 40)))
         sessions.append(self.exclusive_cql_connection(node4))
 
-        #Because repair was never run and nodes had transient data it will have data for transient ranges (node1, 11-20)
+        # Because repair was never run and nodes had transient data it will have data for transient ranges (node1, 11-20)
         assert_all(sessions[3],
                    self.select(),
                    expected[3],
                    cl=NODELOCAL)
 
-        #Node1 no longer transiently replicates 11-20, so cleanup will clean it up
-        #Node1 also now transiently replicates 21-30 and half the values in that range were repaired
+        # Node1 no longer transiently replicates 11-20, so cleanup will clean it up
+        # Node1 also now transiently replicates 21-30 and half the values in that range were repaired
         expected[0] = gen_expected(range(0, 11), range(21, 30, 2), range(31, 40))
-        #Node2 still missing data since it was down during some insertions, it also lost some range (31-40)
+        # Node2 still missing data since it was down during some insertions, it also lost some range (31-40)
         expected[1] = gen_expected(range(0, 21, 2))
         expected[2] = gen_expected(range(1, 11, 2), range(11, 31))
 
-        #Cleanup should only impact if a node lost a range entirely or started to transiently replicate it and the data
-        #was repaired
+        # Cleanup should only impact if a node lost a range entirely or started to transiently replicate it and the data
+        # was repaired
         self.check_expected(sessions, expected, nodes, cleanup=True)
 
         repair_nodes(nodes)
@@ -218,7 +229,7 @@ class TestTransientReplicationRing(Tester):
 
         self.check_expected(sessions, expected, nodes, cleanup=True)
 
-        #Every value should be replicated exactly 2 times
+        # Every value should be replicated exactly 2 times
         self.check_replication(sessions, exactly=2)
 
     @flaky(max_runs=1)
@@ -267,7 +278,6 @@ class TestTransientReplicationRing(Tester):
         self.check_expected(sessions, expected_after_repair, nodes, cleanup=True)
         self.check_replication(sessions, exactly=2)
 
-
     @flaky(max_runs=1)
     @pytest.mark.no_vnodes
     def test_move_forwards_between_and_cleanup(self):
@@ -275,14 +285,13 @@ class TestTransientReplicationRing(Tester):
         move_token = '00025'
         expected_after_move = [gen_expected(range(0, 26), range(31, 40, 2)),
                                gen_expected(range(0, 21, 2), range(31, 40)),
-                               gen_expected(range(1, 11, 2), range(11, 21, 2), range(21,31)),
+                               gen_expected(range(1, 11, 2), range(11, 21, 2), range(21, 31)),
                                gen_expected(range(21, 26, 2), range(26, 40))]
         expected_after_repair = [gen_expected(range(0, 26)),
                                  gen_expected(range(0, 21), range(31, 40)),
-                                 gen_expected(range(21, 31),),
+                                 gen_expected(range(21, 31), ),
                                  gen_expected(range(26, 40))]
         self.move_test(move_token, expected_after_move, expected_after_repair)
-
 
     @flaky(max_runs=1)
     @pytest.mark.no_vnodes
@@ -299,7 +308,6 @@ class TestTransientReplicationRing(Tester):
                                  gen_expected(range(21, 40))]
         self.move_test(move_token, expected_after_move, expected_after_repair)
 
-
     @flaky(max_runs=1)
     @pytest.mark.no_vnodes
     def test_move_backwards_between_and_cleanup(self):
@@ -315,7 +323,6 @@ class TestTransientReplicationRing(Tester):
                                  gen_expected(range(31, 40))]
         self.move_test(move_token, expected_after_move, expected_after_repair)
 
-
     @flaky(max_runs=1)
     @pytest.mark.no_vnodes
     def test_move_backwards_and_cleanup(self):
@@ -330,7 +337,6 @@ class TestTransientReplicationRing(Tester):
                                  gen_expected(range(6, 31)),
                                  gen_expected(range(21, 40))]
         self.move_test(move_token, expected_after_move, expected_after_repair)
-
 
     @flaky(max_runs=1)
     @pytest.mark.no_vnodes
@@ -367,7 +373,7 @@ class TestTransientReplicationRing(Tester):
 
         self.check_expected(sessions, expected)
 
-        #node1 has transient data we want to see streamed out on move
+        # node1 has transient data we want to see streamed out on move
         nodes[3].nodetool('decommission')
 
         nodes = nodes[:-1]
@@ -384,14 +390,13 @@ class TestTransientReplicationRing(Tester):
 
         repair_nodes(nodes)
 
-        #There should be no transient data anywhere
+        # There should be no transient data anywhere
         expected = [gen_expected(range(0, 11), range(21, 40)),
                     gen_expected(range(0, 21), range(31, 40)),
                     gen_expected(range(11, 31))]
 
         self.check_expected(sessions, expected, nodes, cleanup=True)
         self.check_replication(sessions, exactly=2)
-
 
     @flaky(max_runs=1)
     @pytest.mark.no_vnodes
@@ -403,8 +408,8 @@ class TestTransientReplicationRing(Tester):
         main_session = self.patient_cql_connection(self.node1)
         nodes = [self.node1, self.node2, self.node3]
 
-        #We want the node being removed to have no data on it so nodetool remove always gets all the necessary data
-        #from survivors
+        # We want the node being removed to have no data on it so nodetool remove always gets all the necessary data
+        # from survivors
         node4_id = node4.nodetool('info').stdout[25:61]
         node4.stop(wait_other_notice=True)
 
@@ -423,14 +428,14 @@ class TestTransientReplicationRing(Tester):
 
         nodes[0].nodetool('removenode ' + node4_id)
 
-        #Give streaming time to occur, it's asynchronous from removenode completing at other ndoes
+        # Give streaming time to occur, it's asynchronous from removenode completing at other ndoes
         import time
         time.sleep(15)
 
         # Everyone should have everything except
         expected = [gen_expected(range(0, 40)),
                     gen_expected(range(0, 40)),
-                    gen_expected(range(0,40))]
+                    gen_expected(range(0, 40))]
 
         self.check_replication(sessions, exactly=3)
         self.check_expected(sessions, expected)
@@ -439,9 +444,9 @@ class TestTransientReplicationRing(Tester):
 
         self.check_replication(sessions, exactly=2)
 
-        expected = [gen_expected(range(0,11), range(21,40)),
-                    gen_expected(range(0,21), range(31, 40)),
-                    gen_expected(range(11,31))]
+        expected = [gen_expected(range(0, 11), range(21, 40)),
+                    gen_expected(range(0, 21), range(31, 40)),
+                    gen_expected(range(11, 31))]
         self.check_expected(sessions, expected)
 
     @flaky(max_runs=1)
@@ -449,7 +454,7 @@ class TestTransientReplicationRing(Tester):
     def test_replace(self):
         main_session = self.patient_cql_connection(self.node1)
 
-        #We want the node being replaced to have no data on it so the replacement definitely fetches all the data
+        # We want the node being replaced to have no data on it so the replacement definitely fetches all the data
         self.node2.stop(wait_other_notice=True)
 
         for i in range(0, 40):
@@ -460,8 +465,9 @@ class TestTransientReplicationRing(Tester):
         self.node2.stop(wait_other_notice=True)
         self.cluster.remove(self.node2)
         self.node2 = Node('replacement', cluster=self.cluster, auto_bootstrap=True,
-                                         thrift_interface=None, storage_interface=(replacement_address, 7000),
-                                         jmx_port='7400', remote_debug_port='0', initial_token=None, binary_interface=(replacement_address, 9042))
+                          thrift_interface=None, storage_interface=(replacement_address, 7000),
+                          jmx_port='7400', remote_debug_port='0', initial_token=None,
+                          binary_interface=(replacement_address, 9042))
         patch_start(self.node2)
         nodes = [self.node1, self.node2, self.node3]
         self.cluster.add(self.node2, False, data_center='datacenter1')
@@ -475,7 +481,7 @@ class TestTransientReplicationRing(Tester):
         # Everyone should have everything
         expected = [gen_expected(range(0, 40)),
                     gen_expected(range(0, 40)),
-                    gen_expected(range(0,40))]
+                    gen_expected(range(0, 40))]
 
         self.check_replication(sessions, exactly=3)
         self.check_expected(sessions, expected)
@@ -485,7 +491,7 @@ class TestTransientReplicationRing(Tester):
 
         self.check_replication(sessions, exactly=2)
 
-        expected = [gen_expected(range(0,11), range(21,40)),
-                    gen_expected(range(0,21), range(31, 40)),
-                    gen_expected(range(11,31))]
+        expected = [gen_expected(range(0, 11), range(21, 40)),
+                    gen_expected(range(0, 21), range(31, 40)),
+                    gen_expected(range(11, 31))]
         self.check_expected(sessions, expected)

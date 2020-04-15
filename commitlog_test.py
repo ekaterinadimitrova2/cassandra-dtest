@@ -32,7 +32,9 @@ class TestCommitLog(Tester):
 
     @pytest.fixture(scope='function', autouse=True)
     def fixture_set_cluster_settings(self, fixture_dtest_setup):
-        if fixture_dtest_setup.dtest_config.cassandra_version_from_build >= '3.0':
+        if fixture_dtest_setup.dtest_config.cassandra_version_from_build >= '4.0':
+            fixture_dtest_setup.cluster.set_configuration_options({'materialized_views_enabled': 'true'})
+        elif fixture_dtest_setup.dtest_config.cassandra_version_from_build >= '3.0':
             fixture_dtest_setup.cluster.set_configuration_options({'enable_materialized_views': 'true'})
         fixture_dtest_setup.cluster.populate(1)
         [self.node1] = fixture_dtest_setup.cluster.nodelist()

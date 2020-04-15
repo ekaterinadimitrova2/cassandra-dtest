@@ -22,6 +22,8 @@ since = pytest.mark.since
 logging.getLogger('cassandra').setLevel(logging.CRITICAL)
 
 NODELOCAL = 11
+
+
 class SSTable(object):
 
     def __init__(self, name, repaired, pending_id):
@@ -35,9 +37,12 @@ class TableMetrics(object):
     def __init__(self, node, keyspace, table):
         assert isinstance(node, Node)
         self.jmx = JolokiaAgent(node)
-        self.write_latency_mbean = make_mbean("metrics", type="Table", name="WriteLatency", keyspace=keyspace, scope=table)
-        self.speculative_reads_mbean = make_mbean("metrics", type="Table", name="SpeculativeRetries", keyspace=keyspace, scope=table)
-        self.transient_writes_mbean = make_mbean("metrics", type="Table", name="TransientWrites", keyspace=keyspace, scope=table)
+        self.write_latency_mbean = make_mbean("metrics", type="Table", name="WriteLatency", keyspace=keyspace,
+                                              scope=table)
+        self.speculative_reads_mbean = make_mbean("metrics", type="Table", name="SpeculativeRetries", keyspace=keyspace,
+                                                  scope=table)
+        self.transient_writes_mbean = make_mbean("metrics", type="Table", name="TransientWrites", keyspace=keyspace,
+                                                 scope=table)
 
     @property
     def write_count(self):
@@ -102,6 +107,7 @@ class StorageProxy(object):
         """ For contextmanager-style usage. """
         self.stop()
 
+
 class StorageService(object):
 
     def __init__(self, node):
@@ -117,7 +123,9 @@ class StorageService(object):
         self.jmx.stop()
 
     def get_replicas(self, ks, cf, key):
-        return self.jmx.execute_method(self.mbean, "getNaturalEndpointsWithPort(java.lang.String,java.lang.String,java.lang.String,boolean)", [ks, cf, key, True])
+        return self.jmx.execute_method(self.mbean,
+                                       "getNaturalEndpointsWithPort(java.lang.String,java.lang.String,java.lang.String,boolean)",
+                                       [ks, cf, key, True])
 
     def __enter__(self):
         """ For contextmanager-style usage. """
@@ -127,6 +135,7 @@ class StorageService(object):
     def __exit__(self, exc_type, value, traceback):
         """ For contextmanager-style usage. """
         self.stop()
+
 
 def patch_start(startable):
     old_start = startable.start
@@ -139,6 +148,7 @@ def patch_start(startable):
     startable.start = types.MethodType(new_start, startable)
     return startable
 
+
 def get_sstable_data(cls, node, keyspace):
     _sstable_name = re.compile(r'SSTable: (.+)')
     _repaired_at = re.compile(r'Repaired at: (\d+)')
@@ -148,11 +158,13 @@ def get_sstable_data(cls, node, keyspace):
 
     def matches(pattern):
         return filter(None, [pattern.match(l) for l in out.decode("utf-8").split('\n')])
+
     names = [m.group(1) for m in matches(_sstable_name)]
     repaired_times = [int(m.group(1)) for m in matches(_repaired_at)]
 
     def uuid_or_none(s):
         return None if s == 'null' or s == '--' else UUID(s)
+
     pending_repairs = [uuid_or_none(m.group(1)) for m in matches(_pending_repair)]
     assert names
     assert repaired_times
@@ -160,9 +172,9 @@ def get_sstable_data(cls, node, keyspace):
     assert len(names) == len(repaired_times) == len(pending_repairs)
     return [SSTable(*a) for a in zip(names, repaired_times, pending_repairs)]
 
+
 @since('4.0')
 class TransientReplicationBase(Tester):
-
     keyspace = "ks"
     table = "tbl"
 
@@ -179,7 +191,6 @@ class TransientReplicationBase(Tester):
         # Make sure digest is not attempted against the transient node
         self.node3.byteman_submit(['./byteman/throw_on_digest.btm'])
 
-
     def replication_factor(self):
         return '3/1'
 
@@ -193,18 +204,27 @@ class TransientReplicationBase(Tester):
         replication_params['datacenter1'] = self.replication_factor()
         replication_params = ', '.join("'%s': '%s'" % (k, v) for k, v in replication_params.items())
         session.execute("CREATE KEYSPACE %s WITH REPLICATION={%s}" % (self.keyspace, replication_params))
-        session.execute("CREATE TABLE %s.%s (pk int, ck int, value int, PRIMARY KEY (pk, ck)) WITH speculative_retry = 'NEVER' AND read_repair = 'NONE'" % (self.keyspace, self.table))
+        session.execute(
+            "CREATE TABLE %s.%s (pk int, ck int, value int, PRIMARY KEY (pk, ck)) WITH speculative_retry = 'NEVER' AND read_repair = 'NONE'" % (
+            self.keyspace, self.table))
 
     @pytest.fixture(scope='function', autouse=True)
     def setup_cluster(self, fixture_dtest_setup):
         self.tokens = self.tokens()
 
         patch_start(self.cluster)
-        self.cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
-                                                       'num_tokens': 1,
-                                                       'commitlog_sync_period_in_ms': 500,
-                                                       'enable_transient_replication': True,
-                                                       'dynamic_snitch': False})
+        if self.cluster.version() < '4.0':
+            self.cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+                                                           'num_tokens': 1,
+                                                           'commitlog_sync_period_in_ms': 500,
+                                                           'enable_transient_replication': True,
+                                                           'dynamic_snitch': False})
+        else:
+            self.cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+                                                           'num_tokens': 1,
+                                                           'commitlog_sync_period_in_ms': 500,
+                                                           'transient_replication_enabled': True,
+                                                           'dynamic_snitch': False})
         self.populate()
         self.cluster.start(wait_other_notice=True, wait_for_binary_proto=True)
 
@@ -248,13 +268,14 @@ class TransientReplicationBase(Tester):
     def insert_row(self, pk, ck, value, session=None, node=None):
         session = session or self.exclusive_cql_connection(node or self.node1)
         token = Murmur3Token.from_key(pack('>i', pk)).value
-        assert token < self.tokens[0] or self.tokens[-1] < token   # primary replica should be node1
-        self.quorum(session, "INSERT INTO %s.%s (pk, ck, value) VALUES (%s, %s, %s)" % (self.keyspace, self.table, pk, ck, value))
+        assert token < self.tokens[0] or self.tokens[-1] < token  # primary replica should be node1
+        self.quorum(session, "INSERT INTO %s.%s (pk, ck, value) VALUES (%s, %s, %s)" % (
+        self.keyspace, self.table, pk, ck, value))
 
     def delete_row(self, pk, ck, session=None, node=None):
         session = session or self.exclusive_cql_connection(node or self.node1)
         token = Murmur3Token.from_key(pack('>i', pk)).value
-        assert token < self.tokens[0] or self.tokens[-1] < token   # primary replica should be node1
+        assert token < self.tokens[0] or self.tokens[-1] < token  # primary replica should be node1
         self.quorum(session, "DELETE FROM %s.%s WHERE pk = %s AND ck = %s" % (self.keyspace, self.table, pk, ck))
 
     def read_as_list(self, query, session=None, node=None):
@@ -275,7 +296,8 @@ class TransientReplicationBase(Tester):
         return (arr1, arr2)
 
     def generate_rows(self, partitions, rows):
-        return [[pk, ck, pk+ck] for ck in range(rows) for pk in range(partitions)]
+        return [[pk, ck, pk + ck] for ck in range(rows) for pk in range(partitions)]
+
 
 @since('4.0')
 class TestTransientReplication(TransientReplicationBase):
@@ -361,7 +383,7 @@ class TestTransientReplication(TransientReplicationBase):
 
         # Stop writes to the other full node
         self.node2.byteman_submit(['./byteman/stop_writes.btm'])
-        self.delete_row(1, 1, node = self.node1)
+        self.delete_row(1, 1, node=self.node1)
 
         # Stop reads from the node that will hold the second row
         self.node1.stop()
@@ -403,7 +425,8 @@ class TestTransientReplication(TransientReplicationBase):
                    [[1, 1, 1]],
                    cl=ConsistencyLevel.QUORUM)
 
-    def _test_speculative_write_repair_cycle(self, primary_range, optimized_repair, repair_coordinator, expect_node3_data):
+    def _test_speculative_write_repair_cycle(self, primary_range, optimized_repair, repair_coordinator,
+                                             expect_node3_data):
         """
         if one of the full replicas is not available, data should be written to the transient replica, but removed after incremental repair
         """
@@ -495,9 +518,9 @@ class TestTransientReplication(TransientReplicationBase):
         self.node2.byteman_submit(['./byteman/slow_writes.btm'])
 
         self.insert_row(1, 1, 1, session=session)
-        self.assert_local_rows(self.node1, [[1,1,1]])
+        self.assert_local_rows(self.node1, [[1, 1, 1]])
         self.assert_local_rows(self.node2, [])
-        self.assert_local_rows(self.node3, [[1,1,1]])
+        self.assert_local_rows(self.node3, [[1, 1, 1]])
 
     @pytest.mark.no_vnodes
     def test_full_repair_from_full_replica(self):
@@ -568,7 +591,9 @@ class TestTransientReplicationSpeculativeQueries(TransientReplicationBase):
         replication_params['datacenter1'] = self.replication_factor()
         replication_params = ', '.join("'%s': '%s'" % (k, v) for k, v in replication_params.items())
         session.execute("CREATE KEYSPACE %s WITH REPLICATION={%s}" % (self.keyspace, replication_params))
-        session.execute("CREATE TABLE %s.%s (pk int, ck int, value int, PRIMARY KEY (pk, ck)) WITH speculative_retry = 'NEVER' AND read_repair = 'NONE';" % (self.keyspace, self.table))
+        session.execute(
+            "CREATE TABLE %s.%s (pk int, ck int, value int, PRIMARY KEY (pk, ck)) WITH speculative_retry = 'NEVER' AND read_repair = 'NONE';" % (
+            self.keyspace, self.table))
 
     @pytest.mark.no_vnodes
     def test_always_speculate(self):
@@ -603,6 +628,7 @@ class TestTransientReplicationSpeculativeQueries(TransientReplicationBase):
                        [[1, 1, 1],
                         [1, 2, 2]],
                        cl=ConsistencyLevel.QUORUM)
+
 
 @since('4.0')
 class TestMultipleTransientNodes(TransientReplicationBase):
