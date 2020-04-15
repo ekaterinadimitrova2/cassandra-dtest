@@ -207,7 +207,7 @@ class TestIncRepair(Tester):
         """ check manual failing of repair sessions via nodetool works properly """
         self.fixture_dtest_setup.setup_overrides.cluster_options = ImmutableMapping({'hinted_handoff_enabled': 'false',
                                                                                      'num_tokens': 1,
-                                                                                     'commitlog_sync_period_in_ms': 500})
+                                                                                     'commitlog_sync_period': '500ms'})
         self.init_default_config()
         self.cluster.populate(3).start()
         node1, node2, node3 = self.cluster.nodelist()
@@ -246,7 +246,7 @@ class TestIncRepair(Tester):
         """ check manual failing of repair sessions via a node other than the coordinator fails """
         self.fixture_dtest_setup.setup_overrides.cluster_options = ImmutableMapping({'hinted_handoff_enabled': 'false',
                                                                                      'num_tokens': 1,
-                                                                                     'commitlog_sync_period_in_ms': 500})
+                                                                                     'commitlog_sync_period': '500ms'})
 
         self.init_default_config()
         self.cluster.populate(3).start()
@@ -291,7 +291,7 @@ class TestIncRepair(Tester):
         """ check manual failing of repair sessions via a non-coordinator works if the --force flag is set """
         self.fixture_dtest_setup.setup_overrides.cluster_options = ImmutableMapping({'hinted_handoff_enabled': 'false',
                                                                                      'num_tokens': 1,
-                                                                                     'commitlog_sync_period_in_ms': 500})
+                                                                                     'commitlog_sync_period': '500ms'})
         self.init_default_config()
         self.cluster.populate(3).start()
         node1, node2, node3 = self.cluster.nodelist()
@@ -696,7 +696,7 @@ class TestIncRepair(Tester):
     def test_move(self):
         """ Test repaired data remains in sync after a move """
         self.fixture_dtest_setup.setup_overrides.cluster_options = ImmutableMapping({'hinted_handoff_enabled': 'false',
-                                                                                     'commitlog_sync_period_in_ms': 500})
+                                                                                     'commitlog_sync_period': '500ms'})
         self.init_default_config()
         self.cluster.populate(4, tokens=[0, 2**32, 2**48, -(2**32)]).start()
         node1, node2, node3, node4 = self.cluster.nodelist()
@@ -733,7 +733,7 @@ class TestIncRepair(Tester):
     def test_decommission(self):
         """ Test repaired data remains in sync after a decommission """
         self.fixture_dtest_setup.setup_overrides.cluster_options = ImmutableMapping({'hinted_handoff_enabled': 'false',
-                                                                                     'commitlog_sync_period_in_ms': 500})
+                                                                                     'commitlog_sync_period': '500ms'})
         self.init_default_config()
         self.cluster.populate(4).start()
         node1, node2, node3, node4 = self.cluster.nodelist()
@@ -770,7 +770,7 @@ class TestIncRepair(Tester):
     def test_bootstrap(self):
         """ Test repaired data remains in sync after a bootstrap """
         self.fixture_dtest_setup.setup_overrides.cluster_options = ImmutableMapping({'hinted_handoff_enabled': 'false',
-                                                                                     'commitlog_sync_period_in_ms': 500})
+                                                                                     'commitlog_sync_period': '500ms'})
         self.init_default_config()
         self.cluster.populate(3).start()
         node1, node2, node3 = self.cluster.nodelist()
@@ -812,7 +812,7 @@ class TestIncRepair(Tester):
         """
         self.fixture_dtest_setup.setup_overrides.cluster_options = ImmutableMapping({'hinted_handoff_enabled': 'false',
                                                                                      'num_tokens': 1,
-                                                                                     'commitlog_sync_period_in_ms': 500})
+                                                                                     'commitlog_sync_period': '500ms'})
         self.init_default_config()
         self.cluster.populate(3).start()
         node1, node2, node3 = self.cluster.nodelist()
@@ -846,7 +846,7 @@ class TestIncRepair(Tester):
         """
         self.fixture_dtest_setup.setup_overrides.cluster_options = ImmutableMapping({'hinted_handoff_enabled': 'false',
                                                                                      'num_tokens': 1,
-                                                                                     'commitlog_sync_period_in_ms': 500})
+                                                                                     'commitlog_sync_period': '500ms'})
         self.init_default_config()
         self.cluster.populate(3).start()
         node1, node2, node3 = self.cluster.nodelist()
@@ -903,7 +903,7 @@ class TestIncRepair(Tester):
         """
         self.fixture_dtest_setup.setup_overrides.cluster_options = ImmutableMapping({'hinted_handoff_enabled': 'false',
                                                                                      'num_tokens': 1,
-                                                                                     'commitlog_sync_period_in_ms': 500,
+                                                                                     'commitlog_sync_period': '500ms',
                                                                                      'partitioner': 'org.apache.cassandra.dht.Murmur3Partitioner'})
         self.init_default_config()
         self.cluster.populate(3).start()
@@ -1071,9 +1071,17 @@ class TestIncRepair(Tester):
                                                      expect_read_repair=False)
 
     def setup_for_repaired_data_tracking(self):
-        self.fixture_dtest_setup.setup_overrides.cluster_options = ImmutableMapping({'hinted_handoff_enabled': 'false',
-                                                                                     'num_tokens': 1,
-                                                                                     'commitlog_sync_period_in_ms': 500})
+        if self.cluster.version() >= '4.0':
+            self.fixture_dtest_setup.setup_overrides.cluster_options = ImmutableMapping(
+                {'hinted_handoff_enabled': 'false',
+                 'num_tokens': 1,
+                 'commitlog_sync_period': '500ms'})
+        else:
+            self.fixture_dtest_setup.setup_overrides.cluster_options = ImmutableMapping(
+                {'hinted_handoff_enabled': 'false',
+                 'num_tokens': 1,
+                 'commitlog_sync_period_in_ms': 500})
+
         self.init_default_config()
         self.cluster.populate(2)
         node1, node2 = self.cluster.nodelist()

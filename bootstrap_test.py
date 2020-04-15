@@ -166,6 +166,9 @@ class TestBootstrap(Tester):
         yaml_opts = {'streaming_keep_alive_period_in_secs': 2}
         if cluster.version() < '4.0':
             yaml_opts['streaming_socket_timeout_in_ms'] = 1000
+        elif cluster.version() >= '4.0':
+            yaml_opts = {'streaming_keep_alive_period': '2s'}
+
         cluster.set_configuration_options(values=yaml_opts)
 
         # Create a single node cluster
@@ -339,7 +342,11 @@ class TestBootstrap(Tester):
     def test_bootstrap_with_reset_bootstrap_state(self):
         """Test bootstrap with resetting bootstrap progress"""
         cluster = self.cluster
-        cluster.set_configuration_options(values={'stream_throughput_outbound_megabits_per_sec': 1})
+        config = {'stream_throughput_outbound_megabits_per_sec': 1}
+        if cluster.version() >= '4.0':
+            config['stream_throughput_outbound'] = '1mbps'
+        cluster.set_configuration_options(values=config)
+
         cluster.populate(2).start(wait_other_notice=True)
 
         node1 = cluster.nodes['node1']
@@ -582,7 +589,10 @@ class TestBootstrap(Tester):
         """
         cluster = self.cluster
         cluster.populate(1)
-        cluster.set_configuration_options(values={'stream_throughput_outbound_megabits_per_sec': 1})
+        config = {'stream_throughput_outbound_megabits_per_sec': 1}
+        if cluster.version() >= '4.0':
+            config['stream_throughput_outbound'] = '1mbps'
+        cluster.set_configuration_options(values=config)
         cluster.start(wait_for_binary_proto=True)
 
         stress_table = 'keyspace1.standard1'
@@ -724,6 +734,9 @@ class TestBootstrap(Tester):
 
         cluster = self.cluster
         cluster.populate(1)
+        if cluster.version() >= '4.0':
+            config['permissions_validity'] = '0ms'
+            config['roles_validity'] = '0ms'
 
         node1 = cluster.nodes['node1']
         # set up byteman

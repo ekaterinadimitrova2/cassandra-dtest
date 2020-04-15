@@ -32,7 +32,9 @@ class TestCommitLog(Tester):
 
     @pytest.fixture(scope='function', autouse=True)
     def fixture_set_cluster_settings(self, fixture_dtest_setup):
-        if fixture_dtest_setup.dtest_config.cassandra_version_from_build >= '3.0':
+        if fixture_dtest_setup.dtest_config.cassandra_version_from_build >= '4.0':
+            fixture_dtest_setup.cluster.set_configuration_options({'materialized_views_enabled': 'true'})
+        elif fixture_dtest_setup.dtest_config.cassandra_version_from_build >= '3.0':
             fixture_dtest_setup.cluster.set_configuration_options({'enable_materialized_views': 'true'})
         fixture_dtest_setup.cluster.populate(1)
         [self.node1] = fixture_dtest_setup.cluster.nodelist()
@@ -48,7 +50,8 @@ class TestCommitLog(Tester):
         if configuration is None:
             configuration = {}
         default_conf = {'commitlog_sync_period_in_ms': 1000}
-
+        if self.cluster.version() >= '4.0':
+            default_conf['commitlog_sync_period'] = '1000ms'
         set_conf = dict(default_conf, **configuration)
         logger.debug('setting commitlog configuration with the following values: '
               '{set_conf} and the following kwargs: {kwargs}'.format(
@@ -110,6 +113,9 @@ class TestCommitLog(Tester):
         if compressed:
             conf['commitlog_compression'] = [{'class_name': 'LZ4Compressor'}]
         conf['memtable_heap_space_in_mb'] = 512
+        if self.cluster.version() >= '4.0':
+            conf['commitlog_segment_size'] = str(segment_size_in_mb)+'mb'
+            conf['memtable_heap_space'] = '512mb'
         self.prepare(configuration=conf, create_test_keyspace=False)
 
         segment_size = segment_size_in_mb * 1024 * 1024
@@ -213,7 +219,10 @@ class TestCommitLog(Tester):
         assert [] != commitlog_files
 
         # set a short timeout to ensure lock contention will generally exceed this
-        node1.set_configuration_options({'write_request_timeout_in_ms': 30})
+        if cluster_ver >= '4.0':
+            node1.set_configuration_options({'write_request_timeout': '30ms', 'write_request_timeout_in_ms': 30})
+        else:
+            node1.set_configuration_options({'write_request_timeout_in_ms': 30})
         logger.debug("Starting node again")
         node1.start()
 
@@ -447,7 +456,10 @@ class TestCommitLog(Tester):
             expected_error]
         node = self.node1
         assert isinstance(node, Node)
-        node.set_configuration_options({'commit_failure_policy': 'stop', 'commitlog_sync_period_in_ms': 1000})
+        if self.cluster.version() >= '4.0':
+            node.set_configuration_options({'commit_failure_policy': 'stop', 'commitlog_sync_period': '1000ms', 'commitlog_sync_period_in_ms': 1000})
+        else:
+            node.set_configuration_options({'commit_failure_policy': 'stop', 'commitlog_sync_period_in_ms': 1000})
         self.cluster.start()
 
         cursor = self.patient_cql_connection(self.cluster.nodelist()[0])
@@ -519,7 +531,13 @@ class TestCommitLog(Tester):
             expected_error]
         node = self.node1
         assert isinstance(node, Node)
-        node.set_configuration_options({'commit_failure_policy': 'stop',
+        if self.cluster.version() >= '4.0':
+            node.set_configuration_options({'commit_failure_policy': 'stop',
+                                            'commitlog_compression': [{'class_name': 'LZ4Compressor'}],
+                                            'commitlog_sync_period': '1000ms',
+                                            'commitlog_sync_period_in_ms': 1000})
+        else:
+            node.set_configuration_options({'commit_failure_policy': 'stop',
                                         'commitlog_compression': [{'class_name': 'LZ4Compressor'}],
                                         'commitlog_sync_period_in_ms': 1000})
         self.cluster.start()

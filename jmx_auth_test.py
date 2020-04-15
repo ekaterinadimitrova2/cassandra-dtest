@@ -57,8 +57,11 @@ class TestJMXAuth(Tester):
 
     def prepare(self, nodes=1, permissions_validity=0):
         config = {'authenticator': 'org.apache.cassandra.auth.PasswordAuthenticator',
-                  'authorizer': 'org.apache.cassandra.auth.CassandraAuthorizer',
-                  'permissions_validity_in_ms': permissions_validity}
+                  'authorizer': 'org.apache.cassandra.auth.CassandraAuthorizer'}
+        if self.cluster.version() >= '4.0':
+            config['permissions_validity'] = str(permissions_validity)+'ms'
+        else:
+            config['permissions_validity_in_ms'] = permissions_validity
         self.cluster.set_configuration_options(values=config)
         self.cluster.populate(nodes)
         [node] = self.cluster.nodelist()

@@ -53,7 +53,10 @@ class TestMaterializedViews(Tester):
 
     def prepare(self, user_table=False, rf=1, options=None, nodes=3, install_byteman=False, **kwargs):
         cluster = self.cluster
-        cluster.set_configuration_options({'enable_materialized_views': 'true'})
+        if cluster.version() < '4.0':
+            cluster.set_configuration_options({'enable_materialized_views': 'true'})
+        else:
+            cluster.set_configuration_options({'materialized_views_enabled': 'true'})
         cluster.populate([nodes, 0], install_byteman=install_byteman)
         if options:
             cluster.set_configuration_options(values=options)
@@ -705,7 +708,10 @@ class TestMaterializedViews(Tester):
                     assert_one(session, "SELECT * FROM t_by_v WHERE id = {} and v = {}".format(i, j), [j, i])
 
         node4 = new_node(self.cluster)
-        node4.set_configuration_options(values={'max_mutation_size_in_kb': 20})  # CASSANDRA-11670
+        if self.cluster.version() >= '4.0':
+            node4.set_configuration_options(values={'max_mutation_size': '20kb'})  # CASSANDRA-11670
+        else:
+            node4.set_configuration_options(values={'max_mutation_size_in_kb': 20})  # CASSANDRA-11670
         logger.debug("Start join at {}".format(time.strftime("%H:%M:%S")))
         node4.start(wait_for_binary_proto=True, jvm_args=["-Dcassandra.migration_task_wait_in_seconds={}".format(MIGRATION_WAIT)])
 
@@ -758,7 +764,10 @@ class TestMaterializedViews(Tester):
                 assert_one(session, "SELECT * FROM t_by_v WHERE id = {} and v = {}".format(i, j), [j, i])
 
         node4 = new_node(self.cluster)
-        node4.set_configuration_options(values={'max_mutation_size_in_kb': 20})  # CASSANDRA-11670
+        if self.cluster.version() >= '4.0':
+            node4.set_configuration_options(values={'max_mutation_size': '20kb'})  # CASSANDRA-11670
+        else:
+            node4.set_configuration_options(values={'max_mutation_size_in_kb': 20})  # CASSANDRA-11670
         logger.debug("Start join at {}".format(time.strftime("%H:%M:%S")))
         node4.start(wait_for_binary_proto=True, jvm_args=["-Dcassandra.migration_task_wait_in_seconds={}".format(MIGRATION_WAIT)])
 
@@ -1974,7 +1983,10 @@ class TestMaterializedViews(Tester):
                 jvm_args = ['-Dcassandra.allow_unsafe_replace=true', '-Dcassandra.replace_address={}'.format(node1.address())]
             jvm_args.append("-Dcassandra.test.fail_mv_locks_count=1000")
             # this should not make Keyspace.apply throw WTE on failure to acquire lock
-            node1.set_configuration_options(values={'write_request_timeout_in_ms': 100})
+            if self.cluster.version() >= '4.0':
+                node1.set_configuration_options(values={'write_request_timeout': '100ms'})
+            else:
+                node1.set_configuration_options(values={'write_request_timeout_in_ms': 100})
         logger.debug('Restarting node1 with jvm_args={}'.format(jvm_args))
         node1.start(wait_other_notice=True, wait_for_binary_proto=True, jvm_args=jvm_args)
         logger.debug('Shutdown node2 and node3')
@@ -2317,7 +2329,10 @@ class TestMaterializedViews(Tester):
         @jira_ticket CASSANDRA-9664
         """
         cluster = self.cluster
-        cluster.set_configuration_options({'enable_materialized_views': 'true'})
+        if cluster.version() < '4.0':
+            cluster.set_configuration_options({'enable_materialized_views': 'true'})
+        else:
+            cluster.set_configuration_options({'materialized_views_enabled': 'true'})
         cluster.populate(3).start()
         node1 = cluster.nodelist()[0]
         session = self.patient_cql_connection(node1, consistency_level=ConsistencyLevel.QUORUM)
@@ -2674,7 +2689,10 @@ class TestMaterializedViewsConsistency(Tester):
 
     def prepare(self, user_table=False):
         cluster = self.cluster
-        cluster.set_configuration_options({'enable_materialized_views': 'true'})
+        if cluster.version() < '4.0':
+            cluster.set_configuration_options({'enable_materialized_views': 'true'})
+        else:
+            cluster.set_configuration_options({'materialized_views_enabled': 'true'})
         cluster.populate(3).start()
         node2 = cluster.nodelist()[1]
 
@@ -2865,12 +2883,16 @@ class TestMaterializedViewsLockcontention(Tester):
     """
 
     def _prepare_cluster(self):
-        self.cluster.populate(1)
-        self.cluster.set_configuration_options({'enable_materialized_views': 'true'})
+        cluster = self.cluster
+        cluster.populate(1)
+        if cluster.version() < '4.0':
+            cluster.set_configuration_options({'enable_materialized_views': 'true'})
+        else:
+            cluster.set_configuration_options({'materialized_views_enabled': 'true'})
         self.supports_v5_protocol = self.supports_v5_protocol(self.cluster.version())
         self.protocol_version = 5 if self.supports_v5_protocol else 4
 
-        self.cluster.set_configuration_options(values={
+        cluster.set_configuration_options(values={
             'concurrent_materialized_view_writes': 1,
             'concurrent_writes': 1,
         })
@@ -2878,7 +2900,7 @@ class TestMaterializedViewsLockcontention(Tester):
         for node in self.nodes:
             remove_perf_disable_shared_mem(node)
 
-        self.cluster.start(wait_for_binary_proto=True, jvm_args=[
+        cluster.start(wait_for_binary_proto=True, jvm_args=[
             "-Dcassandra.test.fail_mv_locks_count=64"
         ])
 

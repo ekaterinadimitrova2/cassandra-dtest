@@ -339,7 +339,10 @@ class TestCompaction(Tester):
         Check that we log a warning when the partition size is bigger than compaction_large_partition_warning_threshold_mb
         """
         cluster = self.cluster
-        cluster.set_configuration_options({'compaction_large_partition_warning_threshold_mb': 1})
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options({'compaction_large_partition_warning_threshold': '1mb'})
+        else:
+            cluster.set_configuration_options({'compaction_large_partition_warning_threshold_mb': 1})
         cluster.populate(1).start(wait_for_binary_proto=True)
         [node] = cluster.nodelist()
 

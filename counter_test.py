@@ -29,7 +29,6 @@ class TestCounters(Tester):
         #
         # set up a 2.0 cluster with 3 nodes and set up schema
         #
-
         cluster.set_install_dir(version='2.0.17')
         cluster.populate(3)
         cluster.start()

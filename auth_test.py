@@ -44,7 +44,6 @@ class TestAuth(Tester):
         * Run repair, see 10655
         * Restart the cluster
         * Check that each node agrees on the system_auth RF
-
         @jira_ticket CASSANDRA-10655
         """
         self.prepare(nodes=3)
@@ -826,7 +825,6 @@ class TestAuth(Tester):
         * Grant SELECT to cathy
         * Verify that reading from ks.cf throws Unauthorized until the cache expires
         * Verify that after the cache expires, we can eventually read with both sessions
-
         @jira_ticket CASSANDRA-8194
         """
         self.prepare(permissions_validity=2000)
@@ -909,7 +907,6 @@ class TestAuth(Tester):
         * Grant a number of permissions to each user
         * Verify that LIST PERMISSIONS shows correct permissions for each user
         * Verify that only the superuser can LIST PERMISSIONS
-
         @jira_ticket CASSANDRA-7216
         """
         self.prepare()
@@ -1052,6 +1049,8 @@ class TestAuth(Tester):
         config = {'authenticator': 'org.apache.cassandra.auth.PasswordAuthenticator',
                   'authorizer': 'org.apache.cassandra.auth.CassandraAuthorizer',
                   'permissions_validity_in_ms': 0}
+        if self.dtest_config.cassandra_version_from_build >= '4.0':
+             config['permissions_validity'] = '0ms'
         self.cluster.set_configuration_options(values=config)
         cluster.set_datadir_count(1)
         cluster.populate(1)
@@ -1092,10 +1091,13 @@ class TestAuth(Tester):
         config = {'authenticator': 'org.apache.cassandra.auth.PasswordAuthenticator',
                   'authorizer': 'org.apache.cassandra.auth.CassandraAuthorizer',
                   'permissions_validity_in_ms': permissions_validity}
-        if self.dtest_config.cassandra_version_from_build >= '3.0':
-            config['enable_materialized_views'] = 'true'
         if self.dtest_config.cassandra_version_from_build >= '4.0':
+            config['materialized_views_enabled'] = 'true'
+            config['permissions_validity'] = str(permissions_validity)+'ms'
             config['network_authorizer'] = 'org.apache.cassandra.auth.CassandraNetworkAuthorizer'
+        elif self.dtest_config.cassandra_version_from_build >= '3.0':
+             config['enable_materialized_views'] = 'true'
+
         self.cluster.set_configuration_options(values=config)
         self.cluster.populate(nodes).start()
 
@@ -1160,8 +1162,8 @@ class TestAuthRoles(Tester):
                 'authorizer': 'org.apache.cassandra.auth.CassandraAuthorizer',
                 'network_authorizer': 'org.apache.cassandra.auth.CassandraNetworkAuthorizer',
                 'role_manager': 'org.apache.cassandra.auth.CassandraRoleManager',
-                'permissions_validity_in_ms': 0,
-                'roles_validity_in_ms': 0,
+                'permissions_validity': '0ms',
+                'roles_validity': '0ms',
                 'num_tokens': 1
             })
         else:
@@ -1183,11 +1185,15 @@ class TestAuthRoles(Tester):
         @jira_ticket CASSANDRA-7653
         """
         dtest_setup_overrides = DTestSetupOverrides()
-        if dtest_config.cassandra_version_from_build >= '3.0':
-            dtest_setup_overrides.cluster_options = ImmutableMapping({'enable_user_defined_functions': 'true',
-                                                                      'enable_scripted_user_defined_functions': 'true'})
+        if dtest_config.cassandra_version_from_build < '4.0':
+             if dtest_config.cassandra_version_from_build >= '3.0':
+                 dtest_setup_overrides.cluster_options = ImmutableMapping({'enable_user_defined_functions': 'true',
+                                                                           'enable_scripted_user_defined_functions': 'true'})
+             else:
+                 dtest_setup_overrides.cluster_options = ImmutableMapping({'enable_user_defined_functions': 'true'})
         else:
-            dtest_setup_overrides.cluster_options = ImmutableMapping({'enable_user_defined_functions': 'true'})
+            dtest_setup_overrides.cluster_options = ImmutableMapping({'user_defined_functions_enabled': 'true',
+                                                                      'scripted_user_defined_functions_enabled': 'true'})
 
         if dtest_config.cassandra_version_from_build >= '4.0':
             self.Role = namedtuple('Role', ['name', 'superuser', 'login', 'options', 'dcs'])
@@ -2693,6 +2699,8 @@ class TestAuthRoles(Tester):
 
         if self.dtest_config.cassandra_version_from_build >= '4.0':
             config['network_authorizer'] = 'org.apache.cassandra.auth.CassandraNetworkAuthorizer'
+            config['permissions_validity'] = '0ms'
+            config['roles_validity'] = str(roles_expiry)+'ms'
 
         self.cluster.set_configuration_options(values=config)
         self.cluster.populate(nodes).start(wait_for_binary_proto=True)
@@ -2728,7 +2736,6 @@ class TestAuthUnavailable(Tester):
         * Run repair
         * Stop one of the nodes
         * Verify that attempt to login fail with AuthenticationFailed
-
         @jira_ticket CASSANDRA-15041
         """
         self.prepare(nodes=2)
@@ -2761,7 +2768,6 @@ class TestAuthUnavailable(Tester):
         * Run repair
         * Stop one of the nodes
         * Verify that attempt to login fail with AuthenticationFailed
-
         @jira_ticket CASSANDRA-15041
         """
         self.prepare(nodes=2, cache_validity=500, cache_update_interval=500)
@@ -2801,7 +2807,6 @@ class TestAuthUnavailable(Tester):
         * Run repair
         * Stop one of the nodes
         * Verify that login is successful from cached entries
-
         @jira_ticket CASSANDRA-15041
         """
         self.prepare(nodes=2, cache_validity=60000, cache_update_interval=60000)
@@ -2830,7 +2835,6 @@ class TestAuthUnavailable(Tester):
         * Stop one of the nodes
         * Wait for cache update interval to expire
         * Trigger async update of cache
-
         @jira_ticket CASSANDRA-15041
         """
         self.prepare(nodes=2, cache_validity=60000, cache_update_interval=10)
@@ -2864,7 +2868,6 @@ class TestAuthUnavailable(Tester):
         * Create dummy ks/table
         * Stop one of the nodes
         * Verify that attempt to select on table fail with Unauthorized
-
         @jira_ticket CASSANDRA-15041
         """
         self.prepare(nodes=2)
@@ -2892,7 +2895,6 @@ class TestAuthUnavailable(Tester):
         * Create dummy ks/table
         * Stop one of the nodes
         * Verify that attempt to select on table fail with Unauthorized
-
         @jira_ticket CASSANDRA-15041
         """
         self.prepare(nodes=2, cache_validity=500, cache_update_interval=500)
@@ -2926,7 +2928,6 @@ class TestAuthUnavailable(Tester):
         * Create dummy ks/table
         * Stop one of the nodes
         * Verify that select on table is authorized from cached entries
-
         @jira_ticket CASSANDRA-15041
         """
         self.prepare(nodes=2, cache_validity=60000, cache_update_interval=60000)
@@ -2960,7 +2961,6 @@ class TestAuthUnavailable(Tester):
         * Wait for cache update interval to expire
         * Trigger async update of cache
         * Verify that background update don't log errors
-
         @jira_ticket CASSANDRA-15041
         """
         self.prepare(nodes=2, cache_validity=60000, cache_update_interval=10)
@@ -3016,11 +3016,21 @@ class TestAuthUnavailable(Tester):
                   'permissions_update_interval_in_ms': cache_update_interval,
                   'roles_validity_in_ms': cache_validity,
                   'roles_update_interval_in_ms': cache_update_interval}
-        if self.dtest_config.cassandra_version_from_build >= '3.0':
-            config['enable_materialized_views'] = 'true'
-        if self.dtest_config.cassandra_version_from_build >= '3.4':
+        if self.dtest_config.cassandra_version_from_build >= '4.0':
+            config['materialized_views_enabled'] = 'true'
+            config['permissions_validity'] = str(cache_validity) + 'ms'
+            config['permissions_update_interval'] = str(cache_update_interval) + 'ms'
+            config['roles_validity'] = str(cache_validity) + 'ms'
+            config['roles_update_interval'] = str(cache_update_interval) + 'ms'
+            config['credentials_validity'] = str(cache_validity) + 'ms'
+            config['credentials_update_interval'] = str(cache_update_interval) + 'ms'
+        elif self.dtest_config.cassandra_version_from_build >= '3.4':
             config['credentials_validity_in_ms'] = cache_validity
             config['credentials_update_interval_in_ms'] = cache_update_interval
+            config['enable_materialized_views'] = 'true'
+        elif self.dtest_config.cassandra_version_from_build >= '3.0':
+            config['enable_materialized_views'] = 'true'
+
         self.cluster.set_configuration_options(values=config)
         self.cluster.populate(nodes).start()
 

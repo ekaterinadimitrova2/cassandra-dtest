@@ -782,7 +782,10 @@ class TestConsistency(Tester):
         cluster = self.cluster
 
         # set column_index_size_in_kb to 1 for a slightly easier reproduction sequence
-        cluster.set_configuration_options(values={'column_index_size_in_kb': 1})
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'column_index_size': '1kb'})
+        else:
+            cluster.set_configuration_options(values={'column_index_size_in_kb': 1})
 
         cluster.populate(1).start(wait_other_notice=True)
         node1 = cluster.nodelist()[0]
@@ -839,7 +842,10 @@ class TestConsistency(Tester):
 
         # disable hinted handoff and set batch commit log so this doesn't interfere with the test
         # set column_index_size_in_kb to 1 for a slightly easier reproduction sequence
-        cluster.set_configuration_options(values={'column_index_size_in_kb': 1, 'hinted_handoff_enabled': False})
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'column_index_size': '1kb', 'hinted_handoff_enabled': False})
+        else:
+            cluster.set_configuration_options(values={'column_index_size_in_kb': 1, 'hinted_handoff_enabled': False})
         cluster.set_batch_commitlog(enabled=True)
 
         cluster.populate(3).start(wait_other_notice=True)

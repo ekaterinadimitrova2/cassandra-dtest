@@ -411,7 +411,13 @@ class TestSpeculativeReadRepair(Tester):
     @pytest.fixture(scope='function', autouse=True)
     def fixture_set_cluster_settings(self, fixture_dtest_setup):
         cluster = fixture_dtest_setup.cluster
-        cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+                                                      'dynamic_snitch': False,
+                                                      'write_request_timeout': '1000ms',
+                                                      'read_request_timeout': '1000ms'})
+        else:
+            cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
                                                   'dynamic_snitch': False,
                                                   'write_request_timeout_in_ms': 1000,
                                                   'read_request_timeout_in_ms': 1000})
@@ -702,7 +708,13 @@ class TestReadRepairGuarantees(Tester):
     @pytest.fixture(scope='function', autouse=True)
     def fixture_set_cluster_settings(self, fixture_dtest_setup):
         cluster = fixture_dtest_setup.cluster
-        cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+                                                      'dynamic_snitch': False,
+                                                      'write_request_timeout': '500ms',
+                                                      'read_request_timeout': '500ms'})
+        else:
+            cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
                                                   'dynamic_snitch': False,
                                                   'write_request_timeout_in_ms': 500,
                                                   'read_request_timeout_in_ms': 500})

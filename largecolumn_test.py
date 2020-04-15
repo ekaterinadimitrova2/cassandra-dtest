@@ -48,6 +48,7 @@ class TestLargeColumn(Tester):
         configuration = {'commitlog_segment_size_in_mb': 128, 'internode_compression': 'none'}
         if cluster.version() >= '4.0':
             configuration['internode_max_message_size_in_bytes'] = 128 * 1024 * 1024
+            configuration['commitlog_segment_size'] = '128mb'
         cluster.set_configuration_options(configuration)
 
         # Have Netty allocate memory on heap so it is clear if memory used for large columns is related to intracluster messaging

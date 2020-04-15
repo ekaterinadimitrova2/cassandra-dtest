@@ -16,7 +16,13 @@ class TestBootstrapConsistency(Tester):
     def test_consistent_reads_after_move(self):
         logger.debug("Creating a ring")
         cluster = self.cluster
-        cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+                                                      'write_request_timeout': '60000ms',
+                                                      'read_request_timeout': '60000ms',
+                                                      'dynamic_snitch_badness_threshold': 0.0})
+        else:
+            cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
                                                   'write_request_timeout_in_ms': 60000,
                                                   'read_request_timeout_in_ms': 60000,
                                                   'dynamic_snitch_badness_threshold': 0.0})
@@ -57,7 +63,13 @@ class TestBootstrapConsistency(Tester):
     def test_consistent_reads_after_bootstrap(self):
         logger.debug("Creating a ring")
         cluster = self.cluster
-        cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+                                                      'write_request_timeout': '60000ms',
+                                                      'read_request_timeout': '60000ms',
+                                                      'dynamic_snitch_badness_threshold': 0.0})
+        else:
+            cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
                                                   'write_request_timeout_in_ms': 60000,
                                                   'read_request_timeout_in_ms': 60000,
                                                   'dynamic_snitch_badness_threshold': 0.0})

@@ -22,7 +22,11 @@ class TestPreviewRepair(Tester):
     def test_preview(self):
         """ Test that preview correctly detects out of sync data """
         cluster = self.cluster
-        cluster.set_configuration_options(values={'hinted_handoff_enabled': False, 'commitlog_sync_period_in_ms': 500})
+
+        cluster.set_configuration_options(
+                values={'hinted_handoff_enabled': False, 'commitlog_sync_period': '500ms'})
+
+
         cluster.populate(3).start()
         node1, node2, node3 = cluster.nodelist()
 

@@ -160,7 +160,10 @@ class TestTopology(Tester):
         Test concurrent decommission is not allowed
         """
         cluster = self.cluster
-        cluster.set_configuration_options(values={'stream_throughput_outbound_megabits_per_sec': 1})
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'stream_throughput_outbound': '1mbps'})
+        else:
+            cluster.set_configuration_options(values={'stream_throughput_outbound_megabits_per_sec': 1})
         cluster.populate(2).start(wait_other_notice=True)
         node1, node2 = cluster.nodelist()
 
@@ -205,7 +208,10 @@ class TestTopology(Tester):
                                                         r'Remote peer 127.0.0.2 failed stream session',
                                                         r'Remote peer 127.0.0.2:7000 failed stream session']
         cluster = self.cluster
-        cluster.set_configuration_options(values={'stream_throughput_outbound_megabits_per_sec': 1})
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'stream_throughput_outbound': '1mbps'})
+        else:
+            cluster.set_configuration_options(values={'stream_throughput_outbound_megabits_per_sec': 1})
         cluster.populate(3, install_byteman=True).start(wait_other_notice=True)
         node1, node2, node3 = cluster.nodelist()
 

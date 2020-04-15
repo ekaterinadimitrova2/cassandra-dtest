@@ -73,7 +73,10 @@ class TestWideRows(Tester):
         cluster = self.cluster
         cluster.populate(1).start()
         (node1,) = cluster.nodelist()
-        cluster.set_configuration_options(values={'column_index_size_in_kb': 1})  # reduce this value to force column index creation
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'column_index_size': '1kb'}) # reduce this value to force column index creation
+        else:
+            cluster.set_configuration_options(values={'column_index_size_in_kb': 1})  # reduce this value to force column index creation
         session = self.patient_cql_connection(node1)
         create_ks(session, 'wide_rows', 1)
 

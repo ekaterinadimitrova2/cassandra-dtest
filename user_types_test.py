@@ -524,8 +524,11 @@ class TestUserTypes(Tester):
 
         cluster = self.cluster
         config = {'authenticator': 'org.apache.cassandra.auth.PasswordAuthenticator',
-                  'authorizer': 'org.apache.cassandra.auth.CassandraAuthorizer',
-                  'permissions_validity_in_ms': 0}
+                  'authorizer': 'org.apache.cassandra.auth.CassandraAuthorizer'}
+        if cluster.version() >= '4.0':
+            config['permissions_validity'] = '0ms'
+        else:
+            config['permissions_validity_in_ms'] = 0
         cluster.set_configuration_options(values=config)
         cluster.populate(3).start()
         node1, node2, node3 = cluster.nodelist()

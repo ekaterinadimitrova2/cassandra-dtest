@@ -115,7 +115,10 @@ class TestOfflineTools(Tester):
         @jira_ticket CASSANRDA-8031
         """
         cluster = self.cluster
-        cluster.set_configuration_options(values={'compaction_throughput_mb_per_sec': 0})
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'compaction_throughput': '0mbps'})
+        else:
+            cluster.set_configuration_options(values={'compaction_throughput_mb_per_sec': 0})
         cluster.populate(1).start(wait_for_binary_proto=True)
         node1 = cluster.nodelist()[0]
 

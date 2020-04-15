@@ -150,7 +150,12 @@ class TestDynamicEndpointSnitch(Tester):
         cluster.populate([3, 3])
         coordinator_node, healthy_node, degraded_node, node4, node5, node6 = cluster.nodelist()
         # increase DES reset/update interval so we clear any cross-DC startup reads faster
-        cluster.set_configuration_options(values={'dynamic_snitch_reset_interval_in_ms': 10000,
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'dynamic_snitch_reset_interval': '10000ms',
+                                                      'dynamic_snitch_update_interval': '50ms',
+                                                      'phi_convict_threshold': 12})
+        else:
+            cluster.set_configuration_options(values={'dynamic_snitch_reset_interval_in_ms': 10000,
                                                   'dynamic_snitch_update_interval_in_ms': 50,
                                                   'phi_convict_threshold': 12})
         remove_perf_disable_shared_mem(coordinator_node)

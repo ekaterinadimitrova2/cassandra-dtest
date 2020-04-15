@@ -102,11 +102,18 @@ class TestTransientReplicationRing(Tester):
         self.tokens = ['00010', '00020', '00030']
 
         patch_start(self.cluster)
-        self.cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
-                                                       'num_tokens': 1,
-                                                       'commitlog_sync_period_in_ms': 500,
-                                                       'enable_transient_replication': True,
-                                                       'partitioner' : 'org.apache.cassandra.dht.OrderPreservingPartitioner'})
+        if self.cluster.version() < '4.0':
+            self.cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+                                                           'num_tokens': 1,
+                                                           'commitlog_sync_period_in_ms': 500,
+                                                           'enable_transient_replication': True,
+                                                           'partitioner': 'org.apache.cassandra.dht.OrderPreservingPartitioner'})
+        else:
+            self.cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
+                                                           'num_tokens': 1,
+                                                           'commitlog_sync_period': '500ms',
+                                                           'transient_replication_enabled': True,
+                                                           'partitioner': 'org.apache.cassandra.dht.OrderPreservingPartitioner'})
         print("CLUSTER INSTALL DIR: ")
         print(self.cluster.get_install_dir())
         self.cluster.populate(3, tokens=self.tokens, debug=True, install_byteman=True)

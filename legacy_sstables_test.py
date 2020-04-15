@@ -23,7 +23,10 @@ class TestLegacySSTables(Tester):
         cluster = self.cluster
 
         # set column_index_size_in_kb to 1 for a small reproduction sequence
-        cluster.set_configuration_options(values={'column_index_size_in_kb': 1})
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'column_index_size': '1kb'})
+        else:
+            cluster.set_configuration_options(values={'column_index_size_in_kb': 1})
 
         # start with 2.1.20 to generate a legacy sstable
         cluster.set_install_dir(version='2.1.20')

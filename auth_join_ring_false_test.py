@@ -204,11 +204,14 @@ class TestAuth(Tester):
     def prepare(self, nodes=1, roles_expiry=0):
         config = {'authenticator': 'org.apache.cassandra.auth.PasswordAuthenticator',
                   'authorizer': 'org.apache.cassandra.auth.CassandraAuthorizer',
-                  'role_manager': 'org.apache.cassandra.auth.CassandraRoleManager',
-                  'permissions_validity_in_ms': 0,
-                  'roles_validity_in_ms': roles_expiry}
+                  'role_manager': 'org.apache.cassandra.auth.CassandraRoleManager'}
+        if self.dtest_config.cassandra_version_from_build >= '4.0':
+            config['permissions_validity'] = '0ms'
+            config['roles_validity'] = str(roles_expiry)+'ms'
+        else:
+            config['permissions_validity_in_ms'] = 0
+            config['roles_validity_in_ms'] = roles_expiry
         self.cluster.set_configuration_options(values=config)
         self.cluster.populate(nodes).start(wait_for_binary_proto=True)
 
         self.cluster.wait_for_any_log('Created default superuser', 25)
-

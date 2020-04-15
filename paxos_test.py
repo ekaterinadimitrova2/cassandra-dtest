@@ -24,7 +24,10 @@ class TestPaxos(Tester):
             cluster.set_partitioner("org.apache.cassandra.dht.ByteOrderedPartitioner")
 
         if (use_cache):
-            cluster.set_configuration_options(values={'row_cache_size_in_mb': 100})
+            if cluster.version() >= '4.0':
+                cluster.set_configuration_options(values={'row_cache_size': '100mb'})
+            else:
+                cluster.set_configuration_options(values={'row_cache_size_in_mb': 100})
 
         cluster.populate(nodes).start()
         node1 = cluster.nodelist()[0]

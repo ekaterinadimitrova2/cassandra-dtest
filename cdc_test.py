@@ -261,9 +261,18 @@ class TestCDC(Tester):
             # we want to be able to generate new segments quickly
             'commitlog_segment_size_in_mb': 2,
         }
+
         if configuration_overrides is None:
             configuration_overrides = {}
+
         self.cluster.populate(1)
+        if self.cluster.version() >= '4.0':
+            config_defaults['commitlog_segment_size'] = '2mb'
+            if configuration_overrides is {
+                # Make CDC space as small as possible so we can fill it quickly.
+                'cdc_total_space_in_mb': 4
+            }:
+                configuration_overrides['cdc_total_space'] = '4mb'
         self.cluster.set_configuration_options(dict(config_defaults, **configuration_overrides))
         self.cluster.start(wait_for_binary_proto=True)
         node = self.cluster.nodelist()[0]
@@ -375,8 +384,14 @@ class TestCDC(Tester):
 
         configuration_overrides = {
             # Make CDC space as small as possible so we can fill it quickly.
-            'cdc_total_space_in_mb': 4,
+            'cdc_total_space_in_mb': 4
         }
+
+        if self.cluster.version() >= '4.0':
+            configuration_overrides = {
+                # Make CDC space as small as possible so we can fill it quickly.
+                'cdc_total_space_in_mb': 4, 'cdc_total_space': '4mb'
+            }
         node, session = self.prepare(
             ks_name=ks_name,
             configuration_overrides=configuration_overrides

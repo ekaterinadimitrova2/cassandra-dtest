@@ -41,15 +41,21 @@ class CQLTester(Tester):
             cluster.set_partitioner("org.apache.cassandra.dht.ByteOrderedPartitioner")
 
         if use_cache:
-            cluster.set_configuration_options(values={'row_cache_size_in_mb': 100})
+            if cluster.version() >= '4.0':
+                cluster.set_configuration_options(values={'row_cache_size': '100mb'})
+            else:
+                cluster.set_configuration_options(values={'row_cache_size_in_mb': 100})
 
         if start_rpc:
             cluster.set_configuration_options(values={'start_rpc': True})
 
         if user:
             config = {'authenticator': 'org.apache.cassandra.auth.PasswordAuthenticator',
-                      'authorizer': 'org.apache.cassandra.auth.CassandraAuthorizer',
-                      'permissions_validity_in_ms': 0}
+                      'authorizer': 'org.apache.cassandra.auth.CassandraAuthorizer'}
+            if cluster.version() >= '4.0':
+                config['permissions_validity'] = '0ms'
+            else:
+                config['permissions_validity_in_ms'] = 0
             cluster.set_configuration_options(values=config)
 
         if not cluster.nodelist():
@@ -795,7 +801,12 @@ class AbortedQueryTester(CQLTester):
         @jira_ticket CASSANDRA-7392
         """
         cluster = self.cluster
-        cluster.set_configuration_options(values={'request_timeout_in_ms': 1000,
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'request_timeout': '1000ms',
+                                                      'read_request_timeout': '1000ms',
+                                                      'range_request_timeout': '1000ms'})
+        else:
+            cluster.set_configuration_options(values={'request_timeout_in_ms': 1000,
                                                   'read_request_timeout_in_ms': 1000,
                                                   'range_request_timeout_in_ms': 1000})
 
@@ -915,7 +926,12 @@ class AbortedQueryTester(CQLTester):
         - SELECT over the table and assert it times out
         """
         cluster = self.cluster
-        cluster.set_configuration_options(values={'request_timeout_in_ms': 1000,
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'request_timeout': '1000ms',
+                                                      'read_request_timeout': '1000ms',
+                                                      'range_request_timeout': '1000ms'})
+        else:
+            cluster.set_configuration_options(values={'request_timeout_in_ms': 1000,
                                                   'read_request_timeout_in_ms': 1000,
                                                   'range_request_timeout_in_ms': 1000})
 
@@ -963,7 +979,12 @@ class AbortedQueryTester(CQLTester):
         - assert querying that table results in an unavailable exception
         """
         cluster = self.cluster
-        cluster.set_configuration_options(values={'request_timeout_in_ms': 1000,
+        if cluster.version >= '4.0':
+            cluster.set_configuration_options(values={'request_timeout': '1000ms',
+                                                      'read_request_timeout': '1000ms',
+                                                      'range_request_timeout': '1000ms'})
+        else:
+            cluster.set_configuration_options(values={'request_timeout_in_ms': 1000,
                                                   'read_request_timeout_in_ms': 1000,
                                                   'range_request_timeout_in_ms': 1000})
 
@@ -1025,7 +1046,13 @@ class TestCQLSlowQuery(CQLTester):
         @jira_ticket CASSANDRA-12403
         """
         cluster = self.cluster
-        cluster.set_configuration_options(values={'slow_query_log_timeout_in_ms': 10,
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'slow_query_log_timeout': '10ms',
+                                                      'request_timeout': '120000ms',
+                                                      'read_request_timeout': '120000ms',
+                                                      'range_request_timeout': '120000ms'})
+        else:
+            cluster.set_configuration_options(values={'slow_query_log_timeout_in_ms': 10,
                                                   'request_timeout_in_ms': 120000,
                                                   'read_request_timeout_in_ms': 120000,
                                                   'range_request_timeout_in_ms': 120000})
@@ -1060,7 +1087,13 @@ class TestCQLSlowQuery(CQLTester):
         @jira_ticket CASSANDRA-12403
         """
         cluster = self.cluster
-        cluster.set_configuration_options(values={'slow_query_log_timeout_in_ms': 1,
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options(values={'slow_query_log_timeout': '1ms',
+                                                      'request_timeout': '120000ms',
+                                                      'read_request_timeout': '120000ms',
+                                                      'range_request_timeout': '120000ms'})
+        else:
+            cluster.set_configuration_options(values={'slow_query_log_timeout_in_ms': 1,
                                                   'request_timeout_in_ms': 120000,
                                                   'read_request_timeout_in_ms': 120000,
                                                   'range_request_timeout_in_ms': 120000})

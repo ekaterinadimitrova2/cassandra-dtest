@@ -29,13 +29,22 @@ class TestGlobalRowKeyCache(Tester):
                       (keycache_size, rowcache_size))
                 keyspace_name = 'ks_%d_%d' % (keycache_size, rowcache_size)
 
-                # make the caches save every five seconds
-                cluster.set_configuration_options(values={
-                    'key_cache_size_in_mb': keycache_size,
-                    'row_cache_size_in_mb': rowcache_size,
-                    'row_cache_save_period': 5,
-                    'key_cache_save_period': 5,
-                })
+                if cluster.version() >= '4.0':
+                    # make the caches save every five seconds
+                    cluster.set_configuration_options(values={
+                        'key_cache_size': str(keycache_size)+'mb',
+                        'row_cache_size': str(rowcache_size)+'mb',
+                        'row_cache_save_period': 5,
+                        'key_cache_save_period': 5,
+                    })
+                else:
+                    # make the caches save every five seconds
+                    cluster.set_configuration_options(values={
+                        'key_cache_size_in_mb': keycache_size,
+                        'row_cache_size_in_mb': rowcache_size,
+                        'row_cache_save_period': 5,
+                        'key_cache_save_period': 5,
+                    })
 
                 cluster.start()
                 session = self.patient_cql_connection(node1)

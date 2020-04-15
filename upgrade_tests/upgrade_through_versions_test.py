@@ -301,6 +301,9 @@ class TestUpgrade(Tester):
             self.prepare()
         self.row_values = set()
         cluster = self.cluster
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options({'user_defined_functions_enabled': 'true',
+                                               'scripted_user_defined_functions_enabled': 'true'})
         if cluster.version() >= '3.0':
             cluster.set_configuration_options({'enable_user_defined_functions': 'true',
                                                'enable_scripted_user_defined_functions': 'true'})
@@ -448,7 +451,7 @@ class TestUpgrade(Tester):
             node.set_install_dir(version=version_meta.version)
             logger.debug("Set new cassandra dir for %s: %s" % (node.name, node.get_install_dir()))
             if internode_ssl and (version_meta.family == 'trunk' or version_meta.family >= '4.0'):
-                node.set_configuration_options({'server_encryption_options': {'enabled': True, 'enable_legacy_ssl_storage_port': True}})
+                node.set_configuration_options({'server_encryption_options': {'enabled': True, 'legacy_ssl_storage_port_enabled': True}})
 
         # hacky? yes. We could probably extend ccm to allow this publicly.
         # the topology file needs to be written before any nodes are started
@@ -722,7 +725,10 @@ class BootstrapMixin(object):
         self.prepare()
         cluster = self.cluster
 
-        if cluster.version() >= '3.0':
+        if cluster.version() >= '4.0':
+            cluster.set_configuration_options({'user_defined_functions_enabled': 'true',
+                                               'scripted_user_defined_functions_enabled': 'true'})
+        elif cluster.version() >= '3.0':
             cluster.set_configuration_options({'enable_user_defined_functions': 'true',
                                                'enable_scripted_user_defined_functions': 'true'})
         elif cluster.version() >= '2.2':

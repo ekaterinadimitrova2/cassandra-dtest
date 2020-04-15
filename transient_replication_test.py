@@ -206,12 +206,13 @@ class TransientReplicationBase(Tester):
         self.tokens = self.tokens()
 
         patch_start(self.cluster)
+
         self.cluster.set_configuration_options(values={'hinted_handoff_enabled': False,
-                                                       'num_tokens': 1,
-                                                       'stream_entire_sstables': self.stream_entire_sstables(),
-                                                       'commitlog_sync_period_in_ms': 500,
-                                                       'enable_transient_replication': True,
-                                                       'dynamic_snitch': False})
+                                                           'num_tokens': 1,
+                                                           'stream_entire_sstables': self.stream_entire_sstables(),
+                                                           'commitlog_sync_period': '500ms',
+                                                           'transient_replication_enabled': True,
+                                                           'dynamic_snitch': False})
         self.populate()
         self.cluster.start(wait_other_notice=True, wait_for_binary_proto=True)
 

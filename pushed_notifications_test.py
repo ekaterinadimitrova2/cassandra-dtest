@@ -291,7 +291,10 @@ class TestPushedNotifications(Tester):
         Creating, updating and dropping a keyspace, a table and a materialized view
         will generate the correct schema change notifications.
         """
-        self.cluster.set_configuration_options({'enable_materialized_views': 'true'})
+        if self.cluster.version() < '4.0':
+            self.cluster.set_configuration_options({'enable_materialized_views': 'true'})
+        else:
+            self.cluster.set_configuration_options({'materialized_views_enabled': 'true'})
         self.cluster.populate(2).start(wait_for_binary_proto=True)
         node1, node2 = self.cluster.nodelist()
 
@@ -355,13 +358,22 @@ class TestVariousNotifications(Tester):
         have_v5_protocol = self.cluster.version() >= LooseVersion('3.10')
 
         self.fixture_dtest_setup.allow_log_errors = True
-        self.cluster.set_configuration_options(
-            values={
-                'tombstone_failure_threshold': 500,
-                'read_request_timeout_in_ms': 30000,  # 30 seconds
-                'range_request_timeout_in_ms': 40000
-            }
-        )
+        if self.cluster.version() >= '4.0':
+            self.cluster.set_configuration_options(
+                values={
+                    'tombstone_failure_threshold': 500,
+                    'read_request_timeout': '30000ms',  # 30 seconds
+                    'range_request_timeout': '40000ms'
+                }
+            )
+        else:
+            self.cluster.set_configuration_options(
+                values={
+                    'tombstone_failure_threshold': 500,
+                    'read_request_timeout_in_ms': 30000,  # 30 seconds
+                    'range_request_timeout_in_ms': 40000
+                }
+            )
         self.cluster.populate(3).start()
         node1, node2, node3 = self.cluster.nodelist()
         proto_version = 5 if have_v5_protocol else None

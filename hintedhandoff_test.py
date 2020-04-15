@@ -130,7 +130,11 @@ class TestHintedHandoffConfig(Tester):
         """
         Test global hinted handoff against max_hint_window_in_ms update via nodetool
         """
-        node1, node2 = self._start_two_node_cluster({'hinted_handoff_enabled': True, "max_hint_window_in_ms": 300000})
+        if self.dtest_config.cassandra_version_from_build < '4.0':
+            node1, node2 = self._start_two_node_cluster({'hinted_handoff_enabled': True, "max_hint_window_in_ms": 300000})
+        else:
+            node1, node2 = self._start_two_node_cluster(
+                {'hinted_handoff_enabled': True, "max_hint_window": '300000ms'})
 
         for node in node1, node2:
             res = self._launch_nodetool_cmd(node, 'statushandoff')
