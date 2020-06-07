@@ -402,14 +402,14 @@ class DTestSetup(object):
         timeout = 15000
         if self.cluster_options is not None and len(self.cluster_options) > 0:
             values = merge_dicts(self.cluster_options, phi_values, repaired_data_tracking_values)
-        elif self.cluster.version() >= '4.0':
-            values = merge_dicts(phi_values, repaired_data_tracking_values, {
-                'read_request_timeout': str(timeout)+'ms',
-                'range_request_timeout': str(timeout)+'ms',
-                'write_request_timeout': str(timeout)+'ms',
-                'truncate_request_timeout': str(timeout)+'ms',
-                'request_timeout': str(timeout)+'ms'
-            })
+        #elif self.cluster.version() >= '4.0':
+            #values = merge_dicts(phi_values, repaired_data_tracking_values, {
+                #'read_request_timeout': str(timeout)+'ms',
+                #'range_request_timeout': str(timeout)+'ms',
+                #'write_request_timeout': str(timeout)+'ms',
+                #'truncate_request_timeout': str(timeout)+'ms',
+                #'request_timeout': str(timeout)+'ms'
+            #})
         else:
             values = merge_dicts(phi_values, repaired_data_tracking_values, {
                 'read_request_timeout_in_ms': timeout,
