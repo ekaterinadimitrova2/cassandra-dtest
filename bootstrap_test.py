@@ -10,7 +10,7 @@ import signal
 
 from cassandra import ConsistencyLevel
 from cassandra.concurrent import execute_concurrent_with_args
-from ccmlib.node import NodeError, TimeoutError, ToolError, Node
+from ccmlib.node import NodeError, ToolError, Node
 
 import pytest
 
@@ -25,6 +25,7 @@ from tools.misc import new_node, generate_ssl_stores
 
 since = pytest.mark.since
 logger = logging.getLogger(__name__)
+
 
 class TestBootstrap(Tester):
     byteman_submit_path_pre_4_0 = './byteman/pre4.0/stream_failure.btm'
@@ -116,6 +117,17 @@ class TestBootstrap(Tester):
 
         assert_bootstrap_state(self, node2, 'COMPLETED')
 
+    def _cleanup(self, node):
+        commitlog_dir = os.path.join(node.get_path(), 'commitlogs')
+        for data_dir in node.data_directories():
+            logger.debug("Deleting {}".format(data_dir))
+            shutil.rmtree(data_dir)
+        shutil.rmtree(commitlog_dir)
+
+
+class TestBootstrapSimple(TestBootstrap):
+    __test__ = True
+
     @pytest.mark.no_vnodes
     def test_simple_bootstrap_with_ssl(self):
         self._base_bootstrap_test(enable_ssl=True)
@@ -123,22 +135,6 @@ class TestBootstrap(Tester):
     @pytest.mark.no_vnodes
     def test_simple_bootstrap(self):
         self._base_bootstrap_test()
-
-    @pytest.mark.no_vnodes
-    def test_bootstrap_on_write_survey(self):
-        def bootstrap_on_write_survey_and_join(cluster, token):
-            node2 = new_node(cluster)
-            node2.set_configuration_options(values={'initial_token': token})
-            node2.start(jvm_args=["-Dcassandra.write_survey=true"], wait_for_binary_proto=True)
-
-            assert len(node2.grep_log('Startup complete, but write survey mode is active, not becoming an active ring member.'))
-            assert_bootstrap_state(self, node2, 'IN_PROGRESS')
-
-            node2.nodetool("join")
-            assert len(node2.grep_log('Leaving write survey mode and joining ring at operator request'))
-            return node2
-
-        self._base_bootstrap_test(bootstrap_on_write_survey_and_join)
 
     def _test_bootstrap_with_compatibility_flag_on(self, bootstrap_from_version):
         def bootstrap_with_compatibility_flag_on(cluster, token):
@@ -216,6 +212,10 @@ class TestBootstrap(Tester):
 
         assert_bootstrap_state(self, node3, 'COMPLETED')
 
+
+class TestBootstrapReadFrom(TestBootstrap):
+    __test__ = True
+
     def test_read_from_bootstrapped_node(self):
         """
         Test bootstrapped node sees existing data
@@ -238,6 +238,10 @@ class TestBootstrap(Tester):
         session = self.patient_exclusive_cql_connection(node4)
         new_rows = list(session.execute("SELECT * FROM %s" % (stress_table,)))
         assert original_rows == new_rows
+
+
+class TestBootstrapWaitForStreaming(TestBootstrap):
+    __test__ = True
 
     @since('3.0')
     def test_bootstrap_waits_for_streaming_to_finish(self):
@@ -265,17 +269,9 @@ class TestBootstrap(Tester):
              assert_bootstrap_state(self, node2, 'COMPLETED')
              assert node2.grep_log('Bootstrap completed', filename='debug.log')
 
-    def test_consistent_range_movement_true_with_replica_down_should_fail(self):
-        self._bootstrap_test_with_replica_down(True)
 
-    def test_consistent_range_movement_false_with_replica_down_should_succeed(self):
-        self._bootstrap_test_with_replica_down(False)
-
-    def test_consistent_range_movement_true_with_rf1_should_fail(self):
-        self._bootstrap_test_with_replica_down(True, rf=1)
-
-    def test_consistent_range_movement_false_with_rf1_should_succeed(self):
-        self._bootstrap_test_with_replica_down(False, rf=1)
+class BaseBootstrapConsistentReplicaDown(TestBootstrap):
+    __test__ = True
 
     def _bootstrap_test_with_replica_down(self, consistent_range_movement, rf=2):
         """
@@ -335,6 +331,38 @@ class TestBootstrap(Tester):
                 node3.watch_log_for("Unable to find sufficient sources for streaming range")
             assert_not_running(node3)
 
+
+class TestBootstrapConsistentWithRM(BaseBootstrapConsistentReplicaDown):
+    __test__ = True
+
+    def test_consistent_range_movement_true_with_replica_down_should_fail(self):
+        self._bootstrap_test_with_replica_down(True)
+
+
+class TestBootstrapConsistentNoRM(BaseBootstrapConsistentReplicaDown):
+    __test__ = True
+
+    def test_consistent_range_movement_false_with_replica_down_should_succeed(self):
+        self._bootstrap_test_with_replica_down(False)
+
+
+class TestBootstrapConsistentWithRMRF1(BaseBootstrapConsistentReplicaDown):
+    __test__ = True
+
+    def test_consistent_range_movement_true_with_rf1_should_fail(self):
+        self._bootstrap_test_with_replica_down(True, rf=1)
+
+
+class TestBootstrapConsistentNoRMRF1(BaseBootstrapConsistentReplicaDown):
+    __test__ = True
+
+    def test_consistent_range_movement_false_with_rf1_should_succeed(self):
+        self._bootstrap_test_with_replica_down(False, rf=1)
+
+
+class TestBootstrapResumable(TestBootstrap):
+    __test__ = True
+
     @since('2.2')
     def test_resumable_bootstrap(self):
         """
@@ -379,6 +407,10 @@ class TestBootstrap(Tester):
         if stdout is not None:
             assert "FAILURE" not in stdout
 
+
+class TestBootstrapWithReset(TestBootstrap):
+    __test__ = True
+
     @since('2.2')
     def test_bootstrap_with_reset_bootstrap_state(self):
         """Test bootstrap with resetting bootstrap progress"""
@@ -415,6 +447,10 @@ class TestBootstrap(Tester):
         # check if 2nd bootstrap succeeded
         assert_bootstrap_state(self, node3, 'COMPLETED')
 
+
+class TestBootstrapManual(TestBootstrap):
+    __test__ = True
+
     def test_manual_bootstrap(self):
         """
             Test adding a new node and bootstrapping it manually. No auto_bootstrap.
@@ -441,6 +477,10 @@ class TestBootstrap(Tester):
 
         current_rows = list(session.execute("SELECT * FROM %s" % stress_table))
         assert original_rows == current_rows
+
+
+class TestBootstrapLocalQuorum(TestBootstrap):
+    __test__ = True
 
     def test_local_quorum_bootstrap(self):
         """
@@ -500,6 +540,10 @@ class TestBootstrap(Tester):
         failure = regex.search(str(out))
         assert failure is None, "Error during stress while bootstrapping"
 
+
+class TestBootstrapWiped(TestBootstrap):
+    __test__ = True
+
     def test_shutdown_wiped_node_cannot_join(self):
         self._wiped_node_cannot_join_test(gently=True)
 
@@ -541,6 +585,10 @@ class TestBootstrap(Tester):
         node4.start(no_wait=True, wait_other_notice=False)
         node4.watch_log_for("A node with address {} already exists, cancelling join".format(node4.address_for_current_version_slashy()), from_mark=mark)
 
+
+class TestBootstrapDecommissionedWipedJoin(TestBootstrap):
+    __test__ = True
+
     def test_decommissioned_wiped_node_can_join(self):
         """
         @jira_ticket CASSANDRA-9765
@@ -574,6 +622,10 @@ class TestBootstrap(Tester):
         mark = node4.mark_log()
         node4.start(wait_other_notice=True)
         node4.watch_log_for("JOINING:", from_mark=mark)
+
+
+class TestBootstrapDecommissionedWipedGossip(TestBootstrap):
+    __test__ = True
 
     def test_decommissioned_wiped_node_can_gossip_to_single_seed(self):
         """
@@ -619,6 +671,10 @@ class TestBootstrap(Tester):
         node2.start(wait_other_notice=False)
         node2.watch_log_for("JOINING:", from_mark=mark)
 
+
+class TestBootstrapFailed(TestBootstrap):
+    __test__ = True
+
     def test_failed_bootstrap_wiped_node_can_join(self):
         """
         @jira_ticket CASSANDRA-9765
@@ -656,6 +712,10 @@ class TestBootstrap(Tester):
         mark = node2.mark_log()
         node2.start(wait_other_notice=True)
         node2.watch_log_for("JOINING:", from_mark=mark)
+
+
+class TestBootstrapHibernatingNode(TestBootstrap):
+    __test__ = True
 
     @since('3.0')
     def test_node_cannot_join_as_hibernating_node_without_replace_address(self):
@@ -740,6 +800,9 @@ class TestBootstrap(Tester):
         assert not blind_replacement_node.is_running()
 
 
+class TestBootstrapSimultaneous(TestBootstrap):
+    __test__ = True
+
     @since('2.1.1')
     def test_simultaneous_bootstrap(self):
         """
@@ -787,6 +850,10 @@ class TestBootstrap(Tester):
         for _ in range(5):
             assert_one(session, "SELECT count(*) from keyspace1.standard1", [500000], cl=ConsistencyLevel.ONE)
 
+
+class TestBootstrapCleanup(TestBootstrap):
+    __test__ = True
+
     def test_cleanup(self):
         """
         @jira_ticket CASSANDRA-11179
@@ -827,12 +894,25 @@ class TestBootstrap(Tester):
                 return
             time.sleep(.1)
 
-    def _cleanup(self, node):
-        commitlog_dir = os.path.join(node.get_path(), 'commitlogs')
-        for data_dir in node.data_directories():
-            logger.debug("Deleting {}".format(data_dir))
-            shutil.rmtree(data_dir)
-        shutil.rmtree(commitlog_dir)
+
+class TestBootstrapOnWriteSurvey(TestBootstrap):
+    __test__ = True
+
+    @pytest.mark.no_vnodes
+    def test_bootstrap_on_write_survey(self):
+        def bootstrap_on_write_survey_and_join(cluster, token):
+            node2 = new_node(cluster)
+            node2.set_configuration_options(values={'initial_token': token})
+            node2.start(jvm_args=["-Dcassandra.write_survey=true"], wait_for_binary_proto=True)
+
+            assert len(node2.grep_log('Startup complete, but write survey mode is active, not becoming an active ring member.'))
+            assert_bootstrap_state(self, node2, 'IN_PROGRESS')
+
+            node2.nodetool("join")
+            assert len(node2.grep_log('Leaving write survey mode and joining ring at operator request'))
+            return node2
+
+        self._base_bootstrap_test(bootstrap_on_write_survey_and_join)
 
     @since('2.2')
     def test_bootstrap_binary_disabled(self):
