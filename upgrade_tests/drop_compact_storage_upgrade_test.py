@@ -51,8 +51,6 @@ class TestDropCompactStorage(Tester):
         session.execute("ALTER TABLE drop_compact_storage_test.test DROP COMPACT STORAGE")
 
     def _insert_data(self, session):
-        # Make sure the system_auth table will get replicated to the node that we're going to replace
-
         session.execute("CREATE KEYSPACE drop_compact_storage_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '2'};")
         session.execute("CREATE TABLE drop_compact_storage_test.test (a text PRIMARY KEY, b text, c text) WITH COMPACT STORAGE;")
 
