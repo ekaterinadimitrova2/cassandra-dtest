@@ -51,15 +51,7 @@ class TestDropCompactStorage(Tester):
         for node in [node1, node2]:
             node.nodetool("upgradesstables")
 
-        thrown = False
-        exception = None
-        try:
-            session.execute("ALTER TABLE drop_compact_storage_test.test DROP COMPACT STORAGE")
-        except Exception as e:
-            exception = e
-            thrown = True
-
-        assert not thrown, "Exception should not have been thrown: " + str(exception)
+        session.execute("ALTER TABLE drop_compact_storage_test.test DROP COMPACT STORAGE")
 
     def _insert_data(self, session):
         # Make sure the system_auth table will get replicated to the node that we're going to replace
