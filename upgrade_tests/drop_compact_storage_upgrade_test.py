@@ -41,12 +41,9 @@ class TestDropCompactStorage(Tester):
         exception = None
         try:
             session.execute("ALTER TABLE drop_compact_storage_test.test DROP COMPACT STORAGE")
-        except Exception as e:
-            exception = e
-            thrown = True
-
-        assert thrown, "No exception has been thrown"
-        assert "Cannot DROP COMPACT STORAGE until all SSTables are upgraded, please run `nodetool upgradesstables` first." in str(exception)
+            self.fail("No exception has been thrown")
+        except InvalidRequest as e:
+            assert "Cannot DROP COMPACT STORAGE until all SSTables are upgraded, please run `nodetool upgradesstables` first." in str(e)
 
         for node in [node1, node2]:
             node.nodetool("upgradesstables")
