@@ -6,13 +6,13 @@ from cassandra.query import dict_factory
 from ccmlib.node import NodeError
 
 from dtest import Tester
-from cassandra.protocol import SyntaxException
+from cassandra.protocol import SyntaxException, ConfigurationException
 
 since = pytest.mark.since
 logger = logging.getLogger(__name__)
 
 VERSION_311 = 'github:apache/cassandra-3.11'
-VERSION_TRUNK = 'github:apache/trunk'
+VERSION_TRUNK = 'github:ekaterinadimitrova2/CASSANDRA-16063'
 
 
 @pytest.mark.upgrade_test
@@ -89,7 +89,7 @@ class TestUpgradeSuperColumnsThrough(Tester):
         thrown = False
         try:
             session.execute("CREATE TABLE ks.compact_table (pk int PRIMARY KEY, col1 int, col2 int) WITH COMPACT STORAGE")
-        except SyntaxException:
+        except ConfigurationException:
             thrown = True
 
         assert thrown
@@ -179,6 +179,12 @@ class TestUpgradeSuperColumnsThrough(Tester):
         assert (list(session.execute("SELECT * FROM ks.compact_table WHERE pk = '5'")) ==
                      [{'col1': '50', 'column1': None, 'pk': '5', 'value': None}])
 
+    """
+    The purpose of this test is to show that after verifying early in the startup process in Cassandra 4.0 that 
+    COMPACT STORAGE was not removed prior start of an upgrade, users can still successfully downgrade, remove the COMPACT 
+    STORAGE, and restart the upgrade process.
+    @CASSANDRA-16063
+    """
     def test_downgrade_after_failed_upgrade(self):
         self.prepare(cassandra_version=VERSION_311)
         node = self.cluster.nodelist()[0]
@@ -225,3 +231,13 @@ class TestUpgradeSuperColumnsThrough(Tester):
                 [{'pk': '5', 'col1': '50'}])
         assert (list(session.execute("SELECT * FROM ks.compact_table WHERE pk = '5'")) ==
                 [{'pk': '5', 'col1': '50'}])
+
+        session.execute("ALTER TABLE ks.compact_table DROP COMPACT STORAGE")
+
+        self.upgrade_to_version(VERSION_TRUNK, wait=True)
+
+        session = self.patient_cql_connection(node, row_factory=dict_factory)
+        assert (list(session.execute("SELECT * FROM ks.compact_table WHERE col1 = '50'")) ==
+                     [{'col1': '50', 'column1': None, 'pk': '5', 'value': None}])
+        assert (list(session.execute("SELECT * FROM ks.compact_table WHERE pk = '5'")) ==
+                     [{'col1': '50', 'column1': None, 'pk': '5', 'value': None}])
