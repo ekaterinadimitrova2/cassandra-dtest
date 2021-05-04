@@ -6,7 +6,8 @@
 # git tag -a -f cassandra-test
 # git push origin :refs/tags/cassandra-test
 # git push -f origin refs/tags/cassandra-test
--e git+https://github.com/riptano/ccm.git@cassandra-test#egg=ccm
+#-e git+https://github.com/riptano/ccm.git@cassandra-test#egg=ccm
+-e git+https://github.com/ekaterinadimitrova2/ccm.git@16644#egg=ccm
 decorator
 docopt
 enum34
